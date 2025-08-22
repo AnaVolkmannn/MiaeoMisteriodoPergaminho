@@ -5,11 +5,11 @@ import math
 def executar_tela_inicial():
     pygame.init()
     pygame.mixer.init()
-    som_clique = pygame.mixer.Sound("cliquebotao.mp3")
+    som_clique = pygame.mixer.Sound("audio/cliquebotao.mp3")
     som_clique.set_volume(0.1)
 
     # Música
-    pygame.mixer.music.load("musicafundoinicial.mp3")
+    pygame.mixer.music.load("audio/musicafundoinicial.mp3")
     pygame.mixer.music.set_volume(0.2)
     pygame.mixer.music.play(-1)
 
@@ -18,28 +18,28 @@ def executar_tela_inicial():
     relogio = pygame.time.Clock()
 
     COR_TEXTO = (255, 255, 255)
-    fonte = pygame.font.Font("GROBOLD.ttf", 38)
+    fonte = pygame.font.Font("fonts/PIXELADE.ttf", 68)
 
-    fundo = pygame.image.load("telainicial.jpeg")
+    fundo = pygame.image.load("img/telainicial.png")
     fundo = pygame.transform.scale(fundo, (1280, 720))
 
     pygame.mouse.set_visible(False)
-    cursor_img = pygame.image.load("cursor.png").convert_alpha()
+    cursor_img = pygame.image.load("img/cursor.png").convert_alpha()
 
-    logo = pygame.image.load("logo.png").convert_alpha()
+    logo = pygame.image.load("img/logo2.png").convert_alpha()
 
-    img_botao_normal = pygame.image.load("botao.png").convert_alpha()
-    img_botao_hover = pygame.image.load("botao_hover.png").convert_alpha()
+    img_botao_normal = pygame.image.load("img/botao2.png").convert_alpha()
+    #img_botao_hover = pygame.image.load("img/botao_hover.png").convert_alpha()
 
     botoes = [
         ("JOGAR", 500, 380, 250, 110),
         ("SAIR", 525, 560, 200, 80),
     ]
 
-    som_on = pygame.image.load("som_on.png").convert_alpha()
-    som_on_hover = pygame.image.load("som_on_hover.png").convert_alpha()
-    som_off = pygame.image.load("som_off.png").convert_alpha()
-    som_off_hover = pygame.image.load("som_off_hover.png").convert_alpha()
+    som_on = pygame.image.load("img/som_on.png").convert_alpha()
+    som_on_hover = pygame.image.load("img/som_on_hover.png").convert_alpha()
+    som_off = pygame.image.load("img/som_off.png").convert_alpha()
+    som_off_hover = pygame.image.load("img/som_off_hover.png").convert_alpha()
 
     botao_mute_rect = pygame.Rect(1170, 30, 68, 68)
     som_mutado = False
@@ -56,7 +56,6 @@ def executar_tela_inicial():
         if is_hover:
             largura += 10
             altura += 10
-            imagem = img_botao_hover
 
         offset_x = (largura_base - largura) // 2
         offset_y = (altura_base - altura) // 2
@@ -120,7 +119,7 @@ def executar_tela_inicial():
         tela.blit(fundo, (0, 0))
 
         pos_logo_x = (1280 - logo.get_width()) // 2
-        pos_logo_y = 20 + deslocamento_y
+        pos_logo_y = deslocamento_y
         tela.blit(logo, (pos_logo_x, pos_logo_y))
 
         mouse_pos = pygame.mouse.get_pos()

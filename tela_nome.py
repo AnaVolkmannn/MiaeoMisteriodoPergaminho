@@ -1,13 +1,13 @@
 import pygame
 import sys
 import requests
-from tela_inicial import executar_tela_inicial  # certifique-se de que essa função existe
+from tela_inicial import executar_tela_inicial
 
 def executar_tela_nome():
     pygame.init()
     pygame.mixer.init()
 
-    som_clique = pygame.mixer.Sound("cliquebotao.mp3")
+    som_clique = pygame.mixer.Sound("audio/cliquebotao.mp3")
     som_clique.set_volume(0.1)
 
     largura, altura = 1280, 720
@@ -16,16 +16,16 @@ def executar_tela_nome():
     relogio = pygame.time.Clock()
 
     # Recursos visuais
-    fundo = pygame.image.load("telanome.png")
+    fundo = pygame.image.load("img/telanome.png")
     fundo = pygame.transform.scale(fundo, (largura, altura))
 
-    img_botao_continuar = pygame.image.load("botaocontinuar.png").convert_alpha()
+    img_botao_continuar = pygame.image.load("img/botaocontinuar.png").convert_alpha()
 
     # === BOTÃO HOME com redimensionamento ===
     TAMANHO_BOTAO_HOME = (78, 78)
 
-    img_botaohome_original = pygame.image.load("botaohome_hover.png").convert_alpha()
-    img_botaohome_hover_original = pygame.image.load("botaohome.png").convert_alpha()
+    img_botaohome_original = pygame.image.load("img/botaohome_hover.png").convert_alpha()
+    img_botaohome_hover_original = pygame.image.load("img/botaohome.png").convert_alpha()
 
     img_botaohome = pygame.transform.scale(img_botaohome_original, TAMANHO_BOTAO_HOME)
     img_botaohome_hover = pygame.transform.scale(img_botaohome_hover_original, TAMANHO_BOTAO_HOME)
@@ -34,12 +34,12 @@ def executar_tela_nome():
     botaohome_rect = pygame.Rect(botaohome_pos, TAMANHO_BOTAO_HOME)
 
     # Cursor personalizado
-    cursor_img = pygame.image.load("cursor.png").convert_alpha()
+    cursor_img = pygame.image.load("img/cursor.png").convert_alpha()
     pygame.mouse.set_visible(False)
 
     # Fontes
-    fonte_principal = pygame.font.Font("GROBOLD.ttf", 40)
-    fonte_explicativa = pygame.font.Font("RomanAntique.ttf", 50)
+    fonte_principal = pygame.font.Font("fonts/GROBOLD.ttf", 40)
+    fonte_explicativa = pygame.font.Font("fonts/RomanAntique.ttf", 50)
     fonte_erro = pygame.font.SysFont("GROBOLD", 28, bold=True)
 
     input_ativo = True
@@ -83,18 +83,18 @@ def executar_tela_nome():
             if evento.type == pygame.MOUSEBUTTONDOWN:
                 if botao_rect.collidepoint(evento.pos):
                     som_clique.play()
-                    if nome_digitado.strip() == "":
-                        mostrar_erro = True
-                    else:
-                        try:
-                            resposta = requests.post("http://127.0.0.1:5000/players", json={"nome": nome_digitado})
-                            if resposta.status_code == 201:
-                                print("Nome salvo com sucesso:", resposta.json())
-                                return
-                            else:
-                                print("Erro ao salvar:", resposta.json())
-                        except Exception as e:
-                            print("Erro de conexão com a API:", e)
+                #    if nome_digitado.strip() == "":
+                #        mostrar_erro = True
+                #    else:
+                 #       try:
+                #            resposta = requests.post("http://127.0.0.1:5000/players", json={"nome": nome_digitado})
+                #            if resposta.status_code == 201:
+                #                print("Nome salvo com sucesso:", resposta.json())
+                #                return
+                #            else:
+                 #               print("Erro ao salvar:", resposta.json())
+                 #       except Exception as e:
+                #           print("Erro de conexão com a API:", e)
                 elif botaohome_rect.collidepoint(evento.pos):
                     som_clique.play()
                     pygame.mixer.quit()
