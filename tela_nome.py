@@ -1,6 +1,8 @@
 import pygame
 import sys
-import requests
+import re
+# Se a sua próxima tela tiver outro nome de função, ajuste aqui:
+from camera_scroll import executar_camera_scroll
 from tela_inicial import executar_tela_inicial
 
 def executar_tela_nome():
@@ -23,13 +25,10 @@ def executar_tela_nome():
 
     # === BOTÃO HOME com redimensionamento ===
     TAMANHO_BOTAO_HOME = (78, 78)
-
     img_botaohome_original = pygame.image.load("img/botaohome_hover.png").convert_alpha()
     img_botaohome_hover_original = pygame.image.load("img/botaohome.png").convert_alpha()
-
     img_botaohome = pygame.transform.scale(img_botaohome_original, TAMANHO_BOTAO_HOME)
     img_botaohome_hover = pygame.transform.scale(img_botaohome_hover_original, TAMANHO_BOTAO_HOME)
-
     botaohome_pos = (50, altura - TAMANHO_BOTAO_HOME[1] - 50)
     botaohome_rect = pygame.Rect(botaohome_pos, TAMANHO_BOTAO_HOME)
 
@@ -40,17 +39,39 @@ def executar_tela_nome():
     # Fontes
     fonte_principal = pygame.font.Font("fonts/GROBOLD.ttf", 40)
     fonte_explicativa = pygame.font.Font("fonts/RomanAntique.ttf", 50)
-    fonte_erro = pygame.font.SysFont("GROBOLD", 28, bold=True)
+    fonte_erro = pygame.font.Font("fonts/GROBOLD.ttf", 28)  # garante a mesma fonte do pacote
 
     input_ativo = True
     nome_digitado = ""
     mostrar_erro = False
+    texto_erro = ""
 
-    cor_input = (255, 255, 255)
+    # Cores
+    COR_INPUT = (255, 255, 255)
+    COR_INPUT_INVALIDO = (255, 180, 180)
+    cor_input_atual = COR_INPUT
 
+    # Layout
     input_rect = pygame.Rect(250, 350, 400, 60)
     botao_pos = [300, 450]
     botao_size_original = (301, 90)
+    botao_rect = pygame.Rect(botao_pos[0], botao_pos[1], *botao_size_original)
+
+    # ======= Validação =======
+    # Letras (com acentos) e espaços, de 2 a 20 caracteres
+    PADRAO_NOME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ ]{2,20}$")
+
+    def is_nome_valido(nome: str):
+        n = nome.strip()
+        if not n:
+            return False, "Digite seu nome."
+        if len(n) < 2:
+            return False, "O nome precisa ter pelo menos 2 letras."
+        if len(n) > 20:
+            return False, "O nome pode ter no máximo 20 caracteres."
+        if not PADRAO_NOME.fullmatch(n):
+            return False, "Use apenas letras e espaços (sem números ou símbolos)."
+        return True, ""
 
     # === FADE IN ===
     def fade_in():
@@ -72,34 +93,62 @@ def executar_tela_nome():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+
             if evento.type == pygame.KEYDOWN and input_ativo:
                 if evento.key == pygame.K_RETURN:
-                    pass
+                    # Tenta continuar pela tecla Enter
+                    valido, mensagem = is_nome_valido(nome_digitado)
+                    if valido:
+                        som_clique.play()
+                        pygame.mixer.quit()
+                        # Chama próxima tela
+                        executar_camera_scroll()
+                        return
+                    else:
+                        mostrar_erro = True
+                        texto_erro = mensagem
+                        cor_input_atual = COR_INPUT_INVALIDO
+
                 elif evento.key == pygame.K_BACKSPACE:
                     nome_digitado = nome_digitado[:-1]
                 else:
+                    # Aceita qualquer caractere digitado; valida ao confirmar
                     if len(nome_digitado) < 20:
                         nome_digitado += evento.unicode
+                # Ao digitar algo, reseta a cor do input (apenas feedback visual)
+                if nome_digitado:
+                    cor_input_atual = COR_INPUT
+
             if evento.type == pygame.MOUSEBUTTONDOWN:
-                if botao_rect.collidepoint(evento.pos):
-                    som_clique.play()
-                #    if nome_digitado.strip() == "":
-                #        mostrar_erro = True
-                #    else:
-                 #       try:
-                #            resposta = requests.post("http://127.0.0.1:5000/players", json={"nome": nome_digitado})
-                #            if resposta.status_code == 201:
-                #                print("Nome salvo com sucesso:", resposta.json())
-                #                return
-                #            else:
-                 #               print("Erro ao salvar:", resposta.json())
-                 #       except Exception as e:
-                #           print("Erro de conexão com a API:", e)
-                elif botaohome_rect.collidepoint(evento.pos):
-                    som_clique.play()
-                    pygame.mixer.quit()
-                    executar_tela_inicial()
-                    return
+                mouse_pos_click = evento.pos  # ← captura posição do clique
+                if botao_rect.collidepoint(mouse_pos_click):
+
+                    #CLIQUE NO BOTAO CONTINUAR
+                    if botao_rect.collidepoint(mouse_pos_click):
+                        som_clique.play()
+                        valido, mensagem = is_nome_valido(nome_digitado)
+                        if valido:
+                            # Mensagem de debug para confirmar a chamada
+                            print("[tela_nome] Abrindo mapa com nome:", nome_digitado.strip())
+
+                            # Pare o áudio (se quiser) e reinicialize o DISPLAY
+                            try:
+                                pygame.mixer.stop()
+                                pygame.mixer.quit()
+                            except Exception:
+                                pass
+
+                            # IMPORTANTE: recriar o display para a próxima tela assumir
+                            pygame.display.quit()
+                            pygame.display.init()
+
+                            # Chama a próxima tela
+                            executar_camera_scroll(nome_digitado.strip())
+                            return
+                        else:
+                            mostrar_erro = True
+                            texto_erro = mensagem
+                            cor_input_atual = COR_INPUT_INVALIDO
 
         # Texto explicativo
         linha1 = "Antes de começarmos,"
@@ -111,9 +160,21 @@ def executar_tela_nome():
         tela.blit(texto_linha1, texto_linha1.get_rect(center=(x_central, input_rect.y - 110)))
         tela.blit(texto_linha2, texto_linha2.get_rect(center=(x_central, input_rect.y - 70)))
 
+        # Fundo do campo (leve transparência para destacar)
+        caixa = pygame.Surface((input_rect.width, input_rect.height), pygame.SRCALPHA)
+        caixa.fill((0, 0, 0, 80))
+        tela.blit(caixa, input_rect.topleft)
+
+        # Borda do input (muda se inválido)
+        cor_borda = (200, 50, 50) if cor_input_atual == COR_INPUT_INVALIDO else (240, 230, 200)
+        pygame.draw.rect(tela, cor_borda, input_rect, width=3, border_radius=10)
+
         # Campo de texto
-        texto_input = fonte_principal.render(nome_digitado or "Digite seu nome...", True, cor_input)
-        tela.blit(texto_input, (input_rect.x + 10, input_rect.y + 10))
+        placeholder = "Digite seu nome..."
+        mostrar = nome_digitado if nome_digitado else placeholder
+        cor_texto = cor_input_atual if nome_digitado else (220, 220, 220)
+        texto_input = fonte_principal.render(mostrar, True, cor_texto)
+        tela.blit(texto_input, (input_rect.x + 14, input_rect.y + 10))
 
         # Botão CONTINUAR com hover proporcional
         mouse_pos = pygame.mouse.get_pos()
@@ -144,9 +205,16 @@ def executar_tela_nome():
             tela.blit(img_botaohome, botaohome_pos)
 
         # Mensagem de erro
-        if mostrar_erro:
-            msg = fonte_erro.render("Nome precisa ser preenchido!", True, (255, 255, 255))
-            tela.blit(msg, (input_rect.x + 580, input_rect.y - 280))
+        if mostrar_erro and texto_erro:
+            msg = fonte_erro.render(texto_erro, True, (255, 255, 255))
+            # fundo da mensagem para legibilidade
+            pad = 10
+            msg_rect = msg.get_rect()
+            msg_bg = pygame.Surface((msg_rect.width + 2*pad, msg_rect.height + 2*pad), pygame.SRCALPHA)
+            msg_bg.fill((200, 50, 50, 180))
+            bg_pos = (input_rect.x, input_rect.y - 80)
+            tela.blit(msg_bg, bg_pos)
+            tela.blit(msg, (bg_pos[0] + pad, bg_pos[1] + pad))
 
         # Cursor
         tela.blit(cursor_img, mouse_pos)
