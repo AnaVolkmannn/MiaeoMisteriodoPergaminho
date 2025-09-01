@@ -234,7 +234,7 @@ def executar_camera_scroll(nome: str | None = None):
             pygame.display.flip()
 
         print("[camera_scroll] Loop finalizado. Retornando.")
-        return
+        return "inicial"
 
     except Exception:
         # Log detalhado
@@ -256,8 +256,3 @@ def executar_camera_scroll(nome: str | None = None):
         except:
             pass
         raise
-
-
-# ---------------------- Teste isolado ---------------------- #
-if __name__ == "__main__":
-    executar_camera_scroll("Teste")

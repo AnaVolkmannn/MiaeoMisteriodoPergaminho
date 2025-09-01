@@ -137,12 +137,10 @@ def executar_tela_inicial():
                             som_clique.play()
                         print(f"Botão '{texto}' clicado!")
                         if texto == "SAIR":
-                            pygame.quit()
-                            sys.exit()
+                            return "sair"
                         elif texto == "JOGAR":
                             transicao_fadeout()
-                            import tela_nome
-                            tela_nome.executar_tela_nome()
+                            return "nome"
                             rodando = False
 
                 if botao_mute_rect.collidepoint((mx, my)):

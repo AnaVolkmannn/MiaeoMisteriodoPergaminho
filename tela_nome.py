@@ -1,7 +1,6 @@
 import pygame
 import sys
 import re
-# Se a sua próxima tela tiver outro nome de função, ajuste aqui:
 from camera_scroll import executar_camera_scroll
 from tela_inicial import executar_tela_inicial
 
@@ -23,7 +22,7 @@ def executar_tela_nome():
 
     img_botao_continuar = pygame.image.load("img/botaocontinuar.png").convert_alpha()
 
-    # === BOTÃO HOME com redimensionamento ===
+    # === BOTÃO HOME ===
     TAMANHO_BOTAO_HOME = (78, 78)
     img_botaohome_original = pygame.image.load("img/botaohome_hover.png").convert_alpha()
     img_botaohome_hover_original = pygame.image.load("img/botaohome.png").convert_alpha()
@@ -39,7 +38,7 @@ def executar_tela_nome():
     # Fontes
     fonte_principal = pygame.font.Font("fonts/GROBOLD.ttf", 40)
     fonte_explicativa = pygame.font.Font("fonts/RomanAntique.ttf", 50)
-    fonte_erro = pygame.font.Font("fonts/GROBOLD.ttf", 28)  # garante a mesma fonte do pacote
+    fonte_erro = pygame.font.Font("fonts/GROBOLD.ttf", 28)
 
     input_ativo = True
     nome_digitado = ""
@@ -58,7 +57,6 @@ def executar_tela_nome():
     botao_rect = pygame.Rect(botao_pos[0], botao_pos[1], *botao_size_original)
 
     # ======= Validação =======
-    # Letras (com acentos) e espaços, de 2 a 20 caracteres
     PADRAO_NOME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ ]{2,20}$")
 
     def is_nome_valido(nome: str):
@@ -94,16 +92,17 @@ def executar_tela_nome():
                 pygame.quit()
                 sys.exit()
 
+            # === DIGITAÇÃO ===
             if evento.type == pygame.KEYDOWN and input_ativo:
                 if evento.key == pygame.K_RETURN:
-                    # Tenta continuar pela tecla Enter
                     valido, mensagem = is_nome_valido(nome_digitado)
                     if valido:
                         som_clique.play()
                         pygame.mixer.quit()
-                        # Chama próxima tela
-                        executar_camera_scroll()
-                        return
+                        # Reinicializa display e chama próxima tela
+                        pygame.display.quit()
+                        pygame.display.init()
+                        return "mapa", nome_digitado.strip()
                     else:
                         mostrar_erro = True
                         texto_erro = mensagem
@@ -112,93 +111,87 @@ def executar_tela_nome():
                 elif evento.key == pygame.K_BACKSPACE:
                     nome_digitado = nome_digitado[:-1]
                 else:
-                    # Aceita qualquer caractere digitado; valida ao confirmar
                     if len(nome_digitado) < 20:
                         nome_digitado += evento.unicode
-                # Ao digitar algo, reseta a cor do input (apenas feedback visual)
                 if nome_digitado:
                     cor_input_atual = COR_INPUT
 
+            # === CLIQUES ===
             if evento.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos_click = evento.pos  # ← captura posição do clique
+                mouse_pos_click = evento.pos
+
+                # Clique no CONTINUAR
                 if botao_rect.collidepoint(mouse_pos_click):
+                    som_clique.play()
+                    valido, mensagem = is_nome_valido(nome_digitado)
+                    if valido:
+                        print("[tela_nome] Abrindo mapa com nome:", nome_digitado.strip())
+                        try:
+                            pygame.mixer.stop()
+                            pygame.mixer.quit()
+                        except:
+                            pass
+                        pygame.display.quit()
+                        pygame.display.init()
+                        return "mapa", nome_digitado.strip()
+                    else:
+                        mostrar_erro = True
+                        texto_erro = mensagem
+                        cor_input_atual = COR_INPUT_INVALIDO
 
-                    #CLIQUE NO BOTAO CONTINUAR
-                    if botao_rect.collidepoint(mouse_pos_click):
-                        som_clique.play()
-                        valido, mensagem = is_nome_valido(nome_digitado)
-                        if valido:
-                            # Mensagem de debug para confirmar a chamada
-                            print("[tela_nome] Abrindo mapa com nome:", nome_digitado.strip())
+                # Clique no HOME
+                elif botaohome_rect.collidepoint(mouse_pos_click):
+                    som_clique.play()
+                    try:
+                        pygame.mixer.stop()
+                        pygame.mixer.quit()
+                    except:
+                        pass
+                    pygame.display.quit()
+                    pygame.display.init()
+                    return "inicial", None
 
-                            # Pare o áudio (se quiser) e reinicialize o DISPLAY
-                            try:
-                                pygame.mixer.stop()
-                                pygame.mixer.quit()
-                            except Exception:
-                                pass
-
-                            # IMPORTANTE: recriar o display para a próxima tela assumir
-                            pygame.display.quit()
-                            pygame.display.init()
-
-                            # Chama a próxima tela
-                            executar_camera_scroll(nome_digitado.strip())
-                            return
-                        else:
-                            mostrar_erro = True
-                            texto_erro = mensagem
-                            cor_input_atual = COR_INPUT_INVALIDO
-
-        # Texto explicativo
+        # === TEXTO EXPLICATIVO ===
         linha1 = "Antes de começarmos,"
         linha2 = "diga-nos quem é você..."
-
         texto_linha1 = fonte_explicativa.render(linha1, True, (0, 0, 0))
         texto_linha2 = fonte_explicativa.render(linha2, True, (0, 0, 0))
         x_central = largura // 2.8
         tela.blit(texto_linha1, texto_linha1.get_rect(center=(x_central, input_rect.y - 110)))
         tela.blit(texto_linha2, texto_linha2.get_rect(center=(x_central, input_rect.y - 70)))
 
-        # Fundo do campo (leve transparência para destacar)
+        # Campo input
         caixa = pygame.Surface((input_rect.width, input_rect.height), pygame.SRCALPHA)
         caixa.fill((0, 0, 0, 80))
         tela.blit(caixa, input_rect.topleft)
-
-        # Borda do input (muda se inválido)
         cor_borda = (200, 50, 50) if cor_input_atual == COR_INPUT_INVALIDO else (240, 230, 200)
         pygame.draw.rect(tela, cor_borda, input_rect, width=3, border_radius=10)
 
-        # Campo de texto
         placeholder = "Digite seu nome..."
         mostrar = nome_digitado if nome_digitado else placeholder
         cor_texto = cor_input_atual if nome_digitado else (220, 220, 220)
         texto_input = fonte_principal.render(mostrar, True, cor_texto)
         tela.blit(texto_input, (input_rect.x + 14, input_rect.y + 10))
 
-        # Botão CONTINUAR com hover proporcional
+        # Botão CONTINUAR com hover
         mouse_pos = pygame.mouse.get_pos()
         botao_base_rect = pygame.Rect(botao_pos[0], botao_pos[1], *botao_size_original)
         is_hover_continuar = botao_base_rect.collidepoint(mouse_pos)
-
         escala = 1.1 if is_hover_continuar else 1.0
         nova_largura = int(botao_size_original[0] * escala)
         nova_altura = int(botao_size_original[1] * escala)
-
         botao_img = pygame.transform.smoothscale(img_botao_continuar, (nova_largura, nova_altura))
         offset_x = (nova_largura - botao_size_original[0]) // 2
         offset_y = (nova_altura - botao_size_original[1]) // 2
-
         nova_pos = (botao_pos[0] - offset_x, botao_pos[1] - offset_y)
         botao_rect = botao_img.get_rect(topleft=nova_pos)
 
         tela.blit(botao_img, nova_pos)
-
         texto_botao = fonte_principal.render("CONTINUAR", True, (255, 215, 0))
         texto_botao_rect = texto_botao.get_rect(center=botao_rect.center)
         tela.blit(texto_botao, texto_botao_rect)
 
-        # Botão Home com hover
+        # Botão HOME com hover
         if botaohome_rect.collidepoint(mouse_pos):
             tela.blit(img_botaohome_hover, botaohome_pos)
         else:
@@ -207,7 +200,6 @@ def executar_tela_nome():
         # Mensagem de erro
         if mostrar_erro and texto_erro:
             msg = fonte_erro.render(texto_erro, True, (255, 255, 255))
-            # fundo da mensagem para legibilidade
             pad = 10
             msg_rect = msg.get_rect()
             msg_bg = pygame.Surface((msg_rect.width + 2*pad, msg_rect.height + 2*pad), pygame.SRCALPHA)
