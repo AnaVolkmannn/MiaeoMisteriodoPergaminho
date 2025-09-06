@@ -1,50 +1,67 @@
 import pygame
 from random import randint
 import traceback
-import os  # <- para carregar sprites
+import os
+import csv
 
-# ---------------------- Configurações básicas ---------------------- #
+# ====================== CONFIGURAÇÕES BÁSICAS ====================== #
 WIDTH, HEIGHT = 960, 540       # resolução da janela (16:9)
 FPS = 60
-TILE = 48                      # tamanho de cada tile em px
-MAP_W, MAP_H = 80, 60          # tamanho do mapa em tiles
+SCALE_MIA = 3  # 1.0 = original, 2.0 = 2x maior, etc.
 
-# Cores
-COLOR_GRASS  = (139, 115, 85)
-COLOR_DIRT   = (168, 124, 84)
-COLOR_WATER  = (64, 120, 255)
-COLOR_ROCK   = (110, 110, 110)
-COLOR_PLAYER = (230, 230, 80)
-COLOR_UI     = (0, 0, 0)
+# --- Tamanho de tile do MUNDO (em px na tela) ---
+TILE = 32                      # tamanho do tile no mundo; casa com tileset 32x32
 
 # Velocidade do player
-PLAYER_SPEED = 220  # px/seg
+PLAYER_SPEED = 200  # px/seg
 
-# Sprites
-SPRITES_BASE_PATH = os.path.join("sprites", "mia")
-SPRITE_TARGET_SIZE = (192, 192)    # tamanho final de cada frame na tela (ajuste se necessário)
-ANIM_FPS = 10.0                  # fps da animação de caminhada
+# ==================== CONFIGURAÇÃO DO TILESET ====================== #
+TILESET_PATH = "magecity.png"  # spritesheet
+TILESET_TILE_W = 32            # largura de cada célula no spritesheet
+TILESET_TILE_H = 32            # altura de cada célula no spritesheet
 
+# Mapeamento dos tipos de tile -> (linha, coluna) dentro do spritesheet cortado
+# Ajuste se quiser trocar o visual de cada terreno.
+TILE_PICK = {
+    0: ("GRASS",   (0, 0)),  # grama/terroso
+    1: ("DIRT",    (41,2)),  # terra
+    2: ("WATER",   (7, 1)),  # água
+    3: ("ROCK",    (37, 0)),  # rocha
+}
 
-# ---------------------- Util ---------------------- #
+# ============================ CORES UI ============================= #
+COLOR_UI = (0, 0, 0)
+
+# ============================ UTIL ================================= #
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
 
-def carregar_sprites_direcao(base_path: str, direcao: str, frames: int = 6):
-    """Carrega e redimensiona os frames para uma dada direção."""
-    imagens = []
-    pasta = os.path.join(base_path, direcao)
-    for i in range(1, frames + 1):
-        caminho = os.path.join(pasta, f"{i}.png")
-        img = pygame.image.load(caminho).convert_alpha()
-        if SPRITE_TARGET_SIZE:
-            img = pygame.transform.smoothscale(img, SPRITE_TARGET_SIZE)
-        imagens.append(img)
-    return imagens
+def carregar_tileset(caminho: str, tile_w: int, tile_h: int) -> list[list[pygame.Surface]]:
+    """
+    Carrega o spritesheet e corta em blocos (tile_w x tile_h).
+    Ignora blocos incompletos nas bordas.
+    """
+    imagem = pygame.image.load(caminho).convert_alpha()
+    sheet_w, sheet_h = imagem.get_size()
 
+    tiles = []
+    for y in range(0, sheet_h, tile_h):
+        if y + tile_h > sheet_h:
+            break
+        linha = []
+        for x in range(0, sheet_w, tile_w):
+            if x + tile_w > sheet_w:
+                break
+            rect = pygame.Rect(x, y, tile_w, tile_h)
+            tile = imagem.subsurface(rect).copy()
+            if (tile_w, tile_h) != (TILE, TILE):
+                tile = pygame.transform.smoothscale(tile, (TILE, TILE))
+            linha.append(tile)
+        tiles.append(linha)
+    return tiles
 
-# ---------------------- Câmera ---------------------- #
+# ============================ CÂMERA =============================== #
 class Camera:
     """Gerencia o deslocamento (offset) da cena em relação à tela."""
     SMOOTH = 0
@@ -89,29 +106,42 @@ class Camera:
     def offset(self):
         return int(self.offset_x), int(self.offset_y)
 
-
-# ---------------------- Tilemap dummy ---------------------- #
+# ============================ TILEMAP ============================== #
 class TileMap:
-    def __init__(self, w_tiles: int, h_tiles: int, tile_size: int):
+    def __init__(self, w_tiles: int, h_tiles: int, tile_size: int, tileset_grid: list[list[pygame.Surface]]):
         self.w = w_tiles
         self.h = h_tiles
         self.size = tile_size
-        self.data = self._gen()
+        self.tileset_grid = tileset_grid
+        self.data = self._load_map()   # agora vem do mapa.csv
+        self.tile_surface = self._build_tile_cache()
+        self.debug_mode = False   # ativa com F1
 
-    def _gen(self):
-        data = [[0 for _ in range(self.w)] for _ in range(self.h)]
-        for y in range(self.h):
-            for x in range(self.w):
-                r = randint(0, 100)
-                if r < 4:
-                    data[y][x] = 2  # água
-                elif r < 12:
-                    data[y][x] = 1  # terra
-                elif r < 16:
-                    data[y][x] = 3  # rocha
-                else:
-                    data[y][x] = 0  # grama
-        return data
+    def _load_map(self, filename="mapa.csv"):
+        mapa = []
+        with open(filename, "r") as f:
+            reader = csv.reader(f)
+            for linha in reader:
+                mapa.append([int(x) for x in linha])
+
+        # ajusta largura/altura de acordo com o CSV
+        self.h = len(mapa)
+        self.w = len(mapa[0]) if mapa else 0
+        return mapa
+
+    def _safe_get_tile(self, rc: tuple[int, int]) -> pygame.Surface:
+        r, c = rc
+        if 0 <= r < len(self.tileset_grid) and 0 <= c < len(self.tileset_grid[r]):
+            return self.tileset_grid[r][c]
+        base = self.tileset_grid[0][0].copy()
+        pygame.draw.rect(base, (255, 0, 255), (0, 0, base.get_width()-1, base.get_height()-1), 2)
+        return base
+
+    def _build_tile_cache(self) -> dict[int, pygame.Surface]:
+        cache = {}
+        for tid, (_, rc) in TILE_PICK.items():
+            cache[tid] = self._safe_get_tile(rc)
+        return cache
 
     def draw(self, surf: pygame.Surface, offset: tuple[int, int]):
         offx, offy = offset
@@ -122,53 +152,57 @@ class TileMap:
 
         for y in range(first_y, last_y):
             for x in range(first_x, last_x):
-                tile = self.data[y][x]
-                if tile == 0:
-                    color = COLOR_GRASS
-                elif tile == 1:
-                    color = COLOR_DIRT
-                elif tile == 2:
-                    color = COLOR_WATER
-                else:
-                    color = COLOR_ROCK
+                tile_id = self.data[y][x]
                 rx = x * self.size - offx
                 ry = y * self.size - offy
-                pygame.draw.rect(surf, color, (rx, ry, self.size, self.size))
 
+                surf.blit(self.tile_surface.get(tile_id, self.tile_surface[0]), (rx, ry))
 
-# ---------------------- Player (com sprites) ---------------------- #
+                if self.debug_mode:
+                    font = pygame.font.SysFont("consolas", 14)
+                    txt = font.render(str(tile_id), True, (255, 0, 0))
+                    surf.blit(txt, (rx + 4, ry + 4))
+
+# ============================ PLAYER (com sprites) ================= #
+SPRITES_BASE_PATH = os.path.join("sprites", "mia")
+ANIM_FPS = 10.0
+
 class Player:
-    """
-    Usa um retângulo de colisão (28x36) e desenha o sprite alinhado pelos pés.
-    A animação troca os frames quando movendo; parado usa frame 0 da direção atual.
-    """
     def __init__(self, x: int, y: int):
-        # Retângulo de colisão
         self.rect = pygame.Rect(x, y, 28, 36)
-
-        # Direção/estado
-        self.direcao = "front"   # 'front', 'back', 'right', 'left'
+        self.direcao = "front"
         self.movendo = False
 
-        # Sprites por direção
         self.anim = {
-            "front":   carregar_sprites_direcao(SPRITES_BASE_PATH, "front"),
-            "back":     carregar_sprites_direcao(SPRITES_BASE_PATH, "back"),
-            "right":  carregar_sprites_direcao(SPRITES_BASE_PATH, "right"),
-            "left": carregar_sprites_direcao(SPRITES_BASE_PATH, "left"),
+            "front":   self._carregar_sprites_direcao("front"),
+            "back":    self._carregar_sprites_direcao("back"),
+            "right":   self._carregar_sprites_direcao("right"),
+            "left":    self._carregar_sprites_direcao("left"),
         }
         self.frame = 0
         self.frame_time = 0.0
         self.frame_dur = 1.0 / ANIM_FPS
+        self.sprite_w, self.sprite_h = self.anim["front"][0].get_size()
 
-        # Cache do tamanho do sprite para desenhar pelos pés
-        self.sprite_w, self.sprite_h = SPRITE_TARGET_SIZE
+    def _carregar_sprites_direcao(self, direcao: str, frames: int = 6):
+        imagens = []
+        pasta = os.path.join(SPRITES_BASE_PATH, direcao)
+        for i in range(1, frames + 1):
+            caminho = os.path.join(pasta, f"{i}.png")
+            img = pygame.image.load(caminho).convert_alpha()
+
+            if SCALE_MIA != 1.0:
+                w, h = img.get_size()
+                img = pygame.transform.scale(img, (int(w * SCALE_MIA), int(h * SCALE_MIA)))
+
+            imagens.append(img)
+        return imagens
 
     def _anim_update(self, dt: float):
         if self.movendo:
             self.frame_time += dt
-            while self.frame_time >= self.frame_dur:
-                self.frame_time -= self.frame_dur
+            if self.frame_time >= self.frame_dur:
+                self.frame_time = 0
                 self.frame = (self.frame + 1) % len(self.anim[self.direcao])
         else:
             self.frame = 0
@@ -179,7 +213,6 @@ class Player:
         dx = dy = 0.0
         self.movendo = False
 
-        # Input
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             dx -= 1
             self.direcao = "left"
@@ -197,57 +230,32 @@ class Player:
             self.direcao = "front"
             self.movendo = True
 
-        # Normaliza diagonal
         if dx != 0 and dy != 0:
             dx *= 0.7071
             dy *= 0.7071
 
-        # Movimento
         self.rect.x += int(dx * PLAYER_SPEED * dt)
         self.rect.y += int(dy * PLAYER_SPEED * dt)
 
-        # Limites do mundo
-        world_w = MAP_W * TILE
-        world_h = MAP_H * TILE
-        self.rect.left   = max(0, self.rect.left)
-        self.rect.top    = max(0, self.rect.top)
-        self.rect.right  = min(world_w, self.rect.right)
-        self.rect.bottom = min(world_h, self.rect.bottom)
-
-        # Atualiza animação
         self._anim_update(dt)
 
     def draw(self, surf: pygame.Surface, offset: tuple[int, int]):
         offx, offy = offset
-
-        # Desenha o sprite alinhado pelos pés (base do retângulo)
         img = self.anim[self.direcao][self.frame]
-
         draw_x = self.rect.centerx - self.sprite_w // 2 - offx
         draw_y = self.rect.bottom  - self.sprite_h     - offy
         surf.blit(img, (draw_x, draw_y))
 
-        # (Opcional) desenhar hitbox para debug:
-        # pygame.draw.rect(
-        #     surf, (255, 0, 0),
-        #     (self.rect.x - offx, self.rect.y - offy, self.rect.w, self.rect.h),
-        #     1
-        # )
-
-
-# ---------------------- UI helper ---------------------- #
+# ============================ UI HELPER ============================ #
 def draw_ui(surf: pygame.Surface, camera: Camera):
     font = pygame.font.SysFont("consolas", 18)
     mode_txt = "SMOOTH (Stardew-like)" if camera.mode == Camera.SMOOTH else "QUADROS (screen-by-screen)"
     text = font.render(f"TAB: alternar câmera  |  Modo atual: {mode_txt}", True, COLOR_UI)
     surf.blit(text, (12, 10))
 
-
-# ---------------------- Loop principal ---------------------- #
+# ============================ LOOP PRINCIPAL ======================= #
 def executar_camera_scroll(nome: str | None = None):
-    """Abre a tela do mapa e roda até o usuário sair (ESC ou fechar)."""
     try:
-        # Init robusto
         if not pygame.get_init():
             pygame.init()
         if not pygame.font.get_init():
@@ -258,25 +266,25 @@ def executar_camera_scroll(nome: str | None = None):
         print("[camera_scroll] driver de vídeo:", pygame.display.get_driver())
 
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Câmera com Scroll – Stardew / Quadros")
+        pygame.display.set_caption("Câmera com Scroll – Tileset + Sprites da Mia")
 
-        # Ping visual (confirma abertura da janela)
         screen.fill((30, 30, 30))
         pygame.display.flip()
         pygame.time.delay(150)
 
         clock = pygame.time.Clock()
 
-        # Mundo
-        tilemap = TileMap(MAP_W, MAP_H, TILE)
-        world_w_px = MAP_W * TILE
-        world_h_px = MAP_H * TILE
+        if not os.path.exists(TILESET_PATH):
+            raise FileNotFoundError(f"Tileset não encontrado: {TILESET_PATH}")
+        tileset_grid = carregar_tileset(TILESET_PATH, TILESET_TILE_W, TILESET_TILE_H)
 
-        # Player e câmera
+        tilemap = TileMap(0, 0, TILE, tileset_grid)
+        world_w_px = tilemap.w * TILE
+        world_h_px = tilemap.h * TILE
+
         player = Player(x=world_w_px // 2, y=200)
         camera = Camera(world_w_px, world_h_px)
 
-        # (Opcional) Mostrar o nome do jogador no canto
         font_name = pygame.font.SysFont("consolas", 18) if nome else None
 
         print("[camera_scroll] Entrando no loop principal…")
@@ -286,22 +294,20 @@ def executar_camera_scroll(nome: str | None = None):
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    print("[camera_scroll] Evento QUIT recebido.")
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        print("[camera_scroll] ESC pressionado, saindo.")
                         running = False
                     elif event.key == pygame.K_TAB:
                         camera.toggle_mode()
-                        print("[camera_scroll] Modo câmera =", "SMOOTH" if camera.mode == Camera.SMOOTH else "QUADROS")
+                    elif event.key == pygame.K_F1:
+                        tilemap.debug_mode = not tilemap.debug_mode
+                        print("[camera_scroll] Debug mode =", tilemap.debug_mode)
 
-            # Update
             player.update(dt)
             camera.update(player.rect, dt)
 
-            # Draw
-            screen.fill((210, 200, 170))
+            screen.fill((50, 50, 50))
             tilemap.draw(screen, camera.offset)
             player.draw(screen, camera.offset)
             draw_ui(screen, camera)
@@ -312,13 +318,10 @@ def executar_camera_scroll(nome: str | None = None):
 
             pygame.display.flip()
 
-        print("[camera_scroll] Loop finalizado. Retornando.")
         return "inicial"
 
     except Exception:
-        # Log detalhado
         print("[camera_scroll] EXCEÇÃO DETECTADA:\n" + traceback.format_exc())
-        # Feedback visual rápido do erro na janela (se existir)
         try:
             screen = pygame.display.get_surface()
             if screen:
@@ -335,3 +338,7 @@ def executar_camera_scroll(nome: str | None = None):
         except:
             pass
         raise
+
+# ============================ EXECUÇÃO DIRETA ====================== #
+if __name__ == "__main__":
+    executar_camera_scroll(nome="Mia")
