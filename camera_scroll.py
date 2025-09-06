@@ -1,6 +1,7 @@
 import pygame
 from random import randint
 import traceback
+import os  # <- para carregar sprites
 
 # ---------------------- Configurações básicas ---------------------- #
 WIDTH, HEIGHT = 960, 540       # resolução da janela (16:9)
@@ -9,7 +10,7 @@ TILE = 48                      # tamanho de cada tile em px
 MAP_W, MAP_H = 80, 60          # tamanho do mapa em tiles
 
 # Cores
-COLOR_GRASS  = (92, 148, 62)
+COLOR_GRASS  = (139, 115, 85)
 COLOR_DIRT   = (168, 124, 84)
 COLOR_WATER  = (64, 120, 255)
 COLOR_ROCK   = (110, 110, 110)
@@ -19,10 +20,28 @@ COLOR_UI     = (0, 0, 0)
 # Velocidade do player
 PLAYER_SPEED = 220  # px/seg
 
+# Sprites
+SPRITES_BASE_PATH = os.path.join("sprites", "mia")
+SPRITE_TARGET_SIZE = (192, 192)    # tamanho final de cada frame na tela (ajuste se necessário)
+ANIM_FPS = 10.0                  # fps da animação de caminhada
+
 
 # ---------------------- Util ---------------------- #
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
+
+
+def carregar_sprites_direcao(base_path: str, direcao: str, frames: int = 6):
+    """Carrega e redimensiona os frames para uma dada direção."""
+    imagens = []
+    pasta = os.path.join(base_path, direcao)
+    for i in range(1, frames + 1):
+        caminho = os.path.join(pasta, f"{i}.png")
+        img = pygame.image.load(caminho).convert_alpha()
+        if SPRITE_TARGET_SIZE:
+            img = pygame.transform.smoothscale(img, SPRITE_TARGET_SIZE)
+        imagens.append(img)
+    return imagens
 
 
 # ---------------------- Câmera ---------------------- #
@@ -117,43 +136,103 @@ class TileMap:
                 pygame.draw.rect(surf, color, (rx, ry, self.size, self.size))
 
 
-# ---------------------- Player ---------------------- #
+# ---------------------- Player (com sprites) ---------------------- #
 class Player:
+    """
+    Usa um retângulo de colisão (28x36) e desenha o sprite alinhado pelos pés.
+    A animação troca os frames quando movendo; parado usa frame 0 da direção atual.
+    """
     def __init__(self, x: int, y: int):
+        # Retângulo de colisão
         self.rect = pygame.Rect(x, y, 28, 36)
 
-    def handle_input(self, dt: float):
+        # Direção/estado
+        self.direcao = "front"   # 'front', 'back', 'right', 'left'
+        self.movendo = False
+
+        # Sprites por direção
+        self.anim = {
+            "front":   carregar_sprites_direcao(SPRITES_BASE_PATH, "front"),
+            "back":     carregar_sprites_direcao(SPRITES_BASE_PATH, "back"),
+            "right":  carregar_sprites_direcao(SPRITES_BASE_PATH, "right"),
+            "left": carregar_sprites_direcao(SPRITES_BASE_PATH, "left"),
+        }
+        self.frame = 0
+        self.frame_time = 0.0
+        self.frame_dur = 1.0 / ANIM_FPS
+
+        # Cache do tamanho do sprite para desenhar pelos pés
+        self.sprite_w, self.sprite_h = SPRITE_TARGET_SIZE
+
+    def _anim_update(self, dt: float):
+        if self.movendo:
+            self.frame_time += dt
+            while self.frame_time >= self.frame_dur:
+                self.frame_time -= self.frame_dur
+                self.frame = (self.frame + 1) % len(self.anim[self.direcao])
+        else:
+            self.frame = 0
+            self.frame_time = 0.0
+
+    def update(self, dt: float):
         keys = pygame.key.get_pressed()
         dx = dy = 0.0
+        self.movendo = False
+
+        # Input
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             dx -= 1
+            self.direcao = "left"
+            self.movendo = True
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             dx += 1
+            self.direcao = "right"
+            self.movendo = True
         if keys[pygame.K_w] or keys[pygame.K_UP]:
             dy -= 1
+            self.direcao = "back"
+            self.movendo = True
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
             dy += 1
+            self.direcao = "front"
+            self.movendo = True
+
+        # Normaliza diagonal
         if dx != 0 and dy != 0:
             dx *= 0.7071
             dy *= 0.7071
+
+        # Movimento
         self.rect.x += int(dx * PLAYER_SPEED * dt)
         self.rect.y += int(dy * PLAYER_SPEED * dt)
 
+        # Limites do mundo
         world_w = MAP_W * TILE
         world_h = MAP_H * TILE
-        self.rect.left = max(0, self.rect.left)
-        self.rect.top  = max(0, self.rect.top)
-        self.rect.right = min(world_w, self.rect.right)
+        self.rect.left   = max(0, self.rect.left)
+        self.rect.top    = max(0, self.rect.top)
+        self.rect.right  = min(world_w, self.rect.right)
         self.rect.bottom = min(world_h, self.rect.bottom)
+
+        # Atualiza animação
+        self._anim_update(dt)
 
     def draw(self, surf: pygame.Surface, offset: tuple[int, int]):
         offx, offy = offset
-        pygame.draw.rect(
-            surf,
-            COLOR_PLAYER,
-            (self.rect.x - offx, self.rect.y - offy, self.rect.w, self.rect.h),
-            border_radius=6
-        )
+
+        # Desenha o sprite alinhado pelos pés (base do retângulo)
+        img = self.anim[self.direcao][self.frame]
+
+        draw_x = self.rect.centerx - self.sprite_w // 2 - offx
+        draw_y = self.rect.bottom  - self.sprite_h     - offy
+        surf.blit(img, (draw_x, draw_y))
+
+        # (Opcional) desenhar hitbox para debug:
+        # pygame.draw.rect(
+        #     surf, (255, 0, 0),
+        #     (self.rect.x - offx, self.rect.y - offy, self.rect.w, self.rect.h),
+        #     1
+        # )
 
 
 # ---------------------- UI helper ---------------------- #
@@ -218,7 +297,7 @@ def executar_camera_scroll(nome: str | None = None):
                         print("[camera_scroll] Modo câmera =", "SMOOTH" if camera.mode == Camera.SMOOTH else "QUADROS")
 
             # Update
-            player.handle_input(dt)
+            player.update(dt)
             camera.update(player.rect, dt)
 
             # Draw
