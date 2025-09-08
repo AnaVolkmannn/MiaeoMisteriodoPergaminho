@@ -160,14 +160,12 @@ def executar_tela_nome():
         tela.blit(texto_linha1, texto_linha1.get_rect(center=(x_central, input_rect.y - 110)))
         tela.blit(texto_linha2, texto_linha2.get_rect(center=(x_central, input_rect.y - 70)))
 
-        # Campo input
-        caixa = pygame.Surface((input_rect.width, input_rect.height), pygame.SRCALPHA)
-        caixa.fill((0, 0, 0, 80))
-        tela.blit(caixa, input_rect.topleft)
-        cor_borda = (200, 50, 50) if cor_input_atual == COR_INPUT_INVALIDO else (240, 230, 200)
-        pygame.draw.rect(tela, cor_borda, input_rect, width=3, border_radius=10)
-
+        # Campo input (sem borda)
         placeholder = "Digite seu nome..."
+
+        # (removido) cor_borda = ...
+        # (removido) pygame.draw.rect(tela, cor_borda, input_rect, width=3, border_radius=10)
+
         mostrar = nome_digitado if nome_digitado else placeholder
         cor_texto = cor_input_atual if nome_digitado else (220, 220, 220)
         texto_input = fonte_principal.render(mostrar, True, cor_texto)
