@@ -4,44 +4,38 @@ import traceback
 import os
 import csv
 
+# importa os minigames
+from minigame1 import executar_minigame1
+from minigame2 import executar_minigame2
+from minigame3 import executar_minigame3
+
 # ====================== CONFIGURAÇÕES BÁSICAS ====================== #
 WIDTH, HEIGHT = 960, 540       # resolução da janela (16:9)
 FPS = 60
-SCALE_MIA = 3  # 1.0 = original, 2.0 = 2x maior, etc.
-
-# --- Tamanho de tile do MUNDO (em px na tela) ---
-TILE = 32                      # tamanho do tile no mundo; casa com tileset 32x32
-
-# Velocidade do player
-PLAYER_SPEED = 200  # px/seg
+SCALE_MIA = 3                  # escala da Mia
+TILE = 32                      # tamanho do tile
+PLAYER_SPEED = 200             # velocidade do player
 
 # ==================== CONFIGURAÇÃO DO TILESET ====================== #
-TILESET_PATH = "magecity.png"  # spritesheet
-TILESET_TILE_W = 32            # largura de cada célula no spritesheet
-TILESET_TILE_H = 32            # altura de cada célula no spritesheet
+TILESET_PATH = "magecity.png"
+TILESET_TILE_W = 32
+TILESET_TILE_H = 32
 
-# Mapeamento dos tipos de tile -> (linha, coluna) dentro do spritesheet cortado
-# Ajuste se quiser trocar o visual de cada terreno.
 TILE_PICK = {
-    0: ("GRASS",   (0, 0)),  # grama/terroso
-    1: ("DIRT",    (41,2)),  # terra
-    2: ("WATER",   (7, 1)),  # água
-    3: ("ROCK",    (37, 0)),  # rocha
+    0: ("GRASS",   (0, 0)),
+    1: ("DIRT",    (41,2)),
+    2: ("WATER",   (7, 1)),
+    3: ("ROCK",    (37, 0)),
 }
 
-# ============================ CORES UI ============================= #
 COLOR_UI = (0, 0, 0)
 
 # ============================ UTIL ================================= #
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
-
 def carregar_tileset(caminho: str, tile_w: int, tile_h: int) -> list[list[pygame.Surface]]:
-    """
-    Carrega o spritesheet e corta em blocos (tile_w x tile_h).
-    Ignora blocos incompletos nas bordas.
-    """
+    """Carrega o spritesheet e corta em blocos (tile_w x tile_h)."""
     imagem = pygame.image.load(caminho).convert_alpha()
     sheet_w, sheet_h = imagem.get_size()
 
@@ -63,7 +57,6 @@ def carregar_tileset(caminho: str, tile_w: int, tile_h: int) -> list[list[pygame
 
 # ============================ CÂMERA =============================== #
 class Camera:
-    """Gerencia o deslocamento (offset) da cena em relação à tela."""
     SMOOTH = 0
     QUADROS = 1
 
@@ -113,9 +106,9 @@ class TileMap:
         self.h = h_tiles
         self.size = tile_size
         self.tileset_grid = tileset_grid
-        self.data = self._load_map()   # agora vem do mapa.csv
+        self.data = self._load_map()
         self.tile_surface = self._build_tile_cache()
-        self.debug_mode = False   # ativa com F1
+        self.debug_mode = False
 
     def _load_map(self, filename="mapa.csv"):
         mapa = []
@@ -124,7 +117,6 @@ class TileMap:
             for linha in reader:
                 mapa.append([int(x) for x in linha])
 
-        # ajusta largura/altura de acordo com o CSV
         self.h = len(mapa)
         self.w = len(mapa[0]) if mapa else 0
         return mapa
@@ -155,7 +147,6 @@ class TileMap:
                 tile_id = self.data[y][x]
                 rx = x * self.size - offx
                 ry = y * self.size - offy
-
                 surf.blit(self.tile_surface.get(tile_id, self.tile_surface[0]), (rx, ry))
 
                 if self.debug_mode:
@@ -163,7 +154,7 @@ class TileMap:
                     txt = font.render(str(tile_id), True, (255, 0, 0))
                     surf.blit(txt, (rx + 4, ry + 4))
 
-# ============================ PLAYER (com sprites) ================= #
+# ============================ PLAYER =============================== #
 SPRITES_BASE_PATH = os.path.join("sprites", "mia")
 ANIM_FPS = 10.0
 
@@ -190,11 +181,9 @@ class Player:
         for i in range(1, frames + 1):
             caminho = os.path.join(pasta, f"{i}.png")
             img = pygame.image.load(caminho).convert_alpha()
-
             if SCALE_MIA != 1.0:
                 w, h = img.get_size()
                 img = pygame.transform.scale(img, (int(w * SCALE_MIA), int(h * SCALE_MIA)))
-
             imagens.append(img)
         return imagens
 
@@ -214,29 +203,19 @@ class Player:
         self.movendo = False
 
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            dx -= 1
-            self.direcao = "left"
-            self.movendo = True
+            dx -= 1; self.direcao = "left"; self.movendo = True
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            dx += 1
-            self.direcao = "right"
-            self.movendo = True
+            dx += 1; self.direcao = "right"; self.movendo = True
         if keys[pygame.K_w] or keys[pygame.K_UP]:
-            dy -= 1
-            self.direcao = "back"
-            self.movendo = True
+            dy -= 1; self.direcao = "back"; self.movendo = True
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            dy += 1
-            self.direcao = "front"
-            self.movendo = True
+            dy += 1; self.direcao = "front"; self.movendo = True
 
         if dx != 0 and dy != 0:
-            dx *= 0.7071
-            dy *= 0.7071
+            dx *= 0.7071; dy *= 0.7071
 
         self.rect.x += int(dx * PLAYER_SPEED * dt)
         self.rect.y += int(dy * PLAYER_SPEED * dt)
-
         self._anim_update(dt)
 
     def draw(self, surf: pygame.Surface, offset: tuple[int, int]):
@@ -263,14 +242,8 @@ def executar_camera_scroll(nome: str | None = None):
         if not pygame.display.get_init():
             pygame.display.init()
 
-        print("[camera_scroll] driver de vídeo:", pygame.display.get_driver())
-
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Câmera com Scroll – Tileset + Sprites da Mia")
-
-        screen.fill((30, 30, 30))
-        pygame.display.flip()
-        pygame.time.delay(150)
 
         clock = pygame.time.Clock()
 
@@ -285,9 +258,16 @@ def executar_camera_scroll(nome: str | None = None):
         player = Player(x=world_w_px // 2, y=200)
         camera = Camera(world_w_px, world_h_px)
 
-        font_name = pygame.font.SysFont("consolas", 18) if nome else None
+        # === Portas para os minigames ===
+        portas = [
+            (pygame.Rect(world_w_px // 2, 400, 60, 80), executar_minigame1, "Minigame 1"),
+            (pygame.Rect(world_w_px // 2 - 200, 600, 60, 80), executar_minigame2, "Minigame 2"),
+            (pygame.Rect(world_w_px // 2 + 200, 600, 60, 80), executar_minigame3, "Minigame 3"),
+        ]
 
-        print("[camera_scroll] Entrando no loop principal…")
+        font_name = pygame.font.SysFont("consolas", 18) if nome else None
+        font_hint = pygame.font.SysFont("consolas", 20)
+
         running = True
         while running:
             dt = clock.tick(FPS) / 1000.0
@@ -302,7 +282,6 @@ def executar_camera_scroll(nome: str | None = None):
                         camera.toggle_mode()
                     elif event.key == pygame.K_F1:
                         tilemap.debug_mode = not tilemap.debug_mode
-                        print("[camera_scroll] Debug mode =", tilemap.debug_mode)
 
             player.update(dt)
             camera.update(player.rect, dt)
@@ -316,29 +295,30 @@ def executar_camera_scroll(nome: str | None = None):
                 label = font_name.render(f"Jogador: {nome}", True, (20, 20, 20))
                 screen.blit(label, (12, HEIGHT - 28))
 
+            # === Desenha e checa cada porta ===
+            for porta, func, titulo in portas:
+                porta_draw = pygame.Rect(
+                    porta.x - camera.offset[0],
+                    porta.y - camera.offset[1],
+                    porta.w,
+                    porta.h
+                )
+                pygame.draw.rect(screen, (139, 69, 19), porta_draw)  # porta provisória
+
+                if player.rect.colliderect(porta):
+                    hint = font_hint.render(f"Pressione E para entrar no {titulo}", True, (255, 255, 0))
+                    screen.blit(hint, (WIDTH//2 - 150, HEIGHT//2 - 50))
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_e]:
+                        func()  # chama o minigame correspondente
+
             pygame.display.flip()
 
         return "inicial"
 
     except Exception:
         print("[camera_scroll] EXCEÇÃO DETECTADA:\n" + traceback.format_exc())
-        try:
-            screen = pygame.display.get_surface()
-            if screen:
-                font = pygame.font.SysFont("consolas", 18)
-                msg_lines = ["ERRO no camera_scroll (ver terminal):", " ", *traceback.format_exc().splitlines()[-6:]]
-                y = 20
-                screen.fill((50, 20, 20))
-                for line in msg_lines:
-                    txt = font.render(line[:120], True, (255, 220, 220))
-                    screen.blit(txt, (20, y))
-                    y += 22
-                pygame.display.flip()
-                pygame.time.delay(2500)
-        except:
-            pass
         raise
 
-# ============================ EXECUÇÃO DIRETA ====================== #
 if __name__ == "__main__":
     executar_camera_scroll(nome="Mia")
