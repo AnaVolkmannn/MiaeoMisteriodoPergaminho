@@ -8,6 +8,7 @@ import csv
 from minigame1 import executar_minigame1
 from minigame2 import executar_minigame2
 from minigame3 import executar_minigame3
+from minigame4 import executar_minigame4
 
 # ====================== CONFIGURAÇÕES BÁSICAS ====================== #
 WIDTH, HEIGHT = 960, 540       # resolução da janela (16:9)
@@ -263,6 +264,7 @@ def executar_camera_scroll(nome: str | None = None):
             (pygame.Rect(world_w_px // 2, 400, 60, 80), executar_minigame1, "Minigame 1"),
             (pygame.Rect(world_w_px // 2 - 200, 600, 60, 80), executar_minigame2, "Minigame 2"),
             (pygame.Rect(world_w_px // 2 + 200, 600, 60, 80), executar_minigame3, "Minigame 3"),
+            (pygame.Rect(world_w_px // 2 + 400, 700, 60, 80), executar_minigame4, "Minigame 4"),
         ]
 
         font_name = pygame.font.SysFont("consolas", 18) if nome else None
