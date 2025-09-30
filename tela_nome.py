@@ -38,12 +38,42 @@ def executar_tela_nome():
     # Fontes
     fonte_principal = pygame.font.Font("fonts/GROBOLD.ttf", 40)
     fonte_explicativa = pygame.font.Font("fonts/RomanAntique.ttf", 50)
-    fonte_erro = pygame.font.Font("fonts/GROBOLD.ttf", 28)
+    fonte_erro = pygame.font.Font(None, 28)
 
-    input_ativo = True
+    # === RECURSO PARA O BALÃO DE FALA ===
+    img_balao_fala = pygame.image.load("img/balao_fala_mia.png").convert_alpha()
+    
+    # === NOVA FUNÇÃO: QUEBRA DE LINHAS ===
+    def quebrar_texto(texto, fonte, largura_max):
+        linhas = []
+        palavras = texto.split(' ')
+        linha_atual = ''
+        for palavra in palavras:
+            if fonte.size(linha_atual + ' ' + palavra)[0] <= largura_max:
+                if linha_atual:
+                    linha_atual += ' ' + palavra
+                else:
+                    linha_atual = palavra
+            else:
+                linhas.append(linha_atual)
+                linha_atual = palavra
+        if linha_atual:
+            linhas.append(linha_atual)
+        return linhas
+
+    input_ativo = False
     nome_digitado = ""
     mostrar_erro = False
     texto_erro = ""
+
+    # Backspace contínuo
+    backspace_delay = 95
+    backspace_timer = 0
+
+    # Cursor piscando
+    cursor_visible = True
+    cursor_timer = 0
+    cursor_interval = 500  # ms
 
     # Cores
     COR_INPUT = (255, 255, 255)
@@ -56,9 +86,8 @@ def executar_tela_nome():
     botao_size_original = (301, 90)
     botao_rect = pygame.Rect(botao_pos[0], botao_pos[1], *botao_size_original)
 
-    # ======= Validação =======
+    # Validação do nome
     PADRAO_NOME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ ]{2,20}$")
-
     def is_nome_valido(nome: str):
         n = nome.strip()
         if not n:
@@ -71,7 +100,7 @@ def executar_tela_nome():
             return False, "Use apenas letras e espaços (sem números ou símbolos)."
         return True, ""
 
-    # === FADE IN ===
+    # Fade in
     def fade_in():
         fade_surface = pygame.Surface((largura, altura))
         fade_surface.fill((0, 0, 0))
@@ -83,6 +112,8 @@ def executar_tela_nome():
             relogio.tick(60)
 
     fade_in()
+
+    placeholder = "Digite seu nome..."
 
     while True:
         tela.blit(fundo, (0, 0))
@@ -99,7 +130,6 @@ def executar_tela_nome():
                     if valido:
                         som_clique.play()
                         pygame.mixer.quit()
-                        # Reinicializa display e chama próxima tela
                         pygame.display.quit()
                         pygame.display.init()
                         return "mapa", nome_digitado.strip()
@@ -119,18 +149,14 @@ def executar_tela_nome():
             # === CLIQUES ===
             if evento.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos_click = evento.pos
+                input_ativo = input_rect.collidepoint(mouse_pos_click)
 
                 # Clique no CONTINUAR
                 if botao_rect.collidepoint(mouse_pos_click):
                     som_clique.play()
                     valido, mensagem = is_nome_valido(nome_digitado)
                     if valido:
-                        print("[tela_nome] Abrindo mapa com nome:", nome_digitado.strip())
-                        try:
-                            pygame.mixer.stop()
-                            pygame.mixer.quit()
-                        except:
-                            pass
+                        pygame.mixer.quit()
                         pygame.display.quit()
                         pygame.display.init()
                         return "mapa", nome_digitado.strip()
@@ -142,14 +168,20 @@ def executar_tela_nome():
                 # Clique no HOME
                 elif botaohome_rect.collidepoint(mouse_pos_click):
                     som_clique.play()
-                    try:
-                        pygame.mixer.stop()
-                        pygame.mixer.quit()
-                    except:
-                        pass
+                    pygame.mixer.quit()
                     pygame.display.quit()
                     pygame.display.init()
                     return "inicial", None
+
+        # === BACKSPACE CONTÍNUO ===
+        teclas = pygame.key.get_pressed()
+        if input_ativo and teclas[pygame.K_BACKSPACE]:
+            tempo_atual = pygame.time.get_ticks()
+            if tempo_atual - backspace_timer > backspace_delay:
+                nome_digitado = nome_digitado[:-1]
+                backspace_timer = tempo_atual
+        else:
+            backspace_timer = pygame.time.get_ticks()
 
         # === TEXTO EXPLICATIVO ===
         linha1 = "Antes de começarmos,"
@@ -160,19 +192,33 @@ def executar_tela_nome():
         tela.blit(texto_linha1, texto_linha1.get_rect(center=(x_central, input_rect.y - 110)))
         tela.blit(texto_linha2, texto_linha2.get_rect(center=(x_central, input_rect.y - 70)))
 
-        # Campo input (sem borda)
-        placeholder = "Digite seu nome..."
+        # === INPUT ===
+        if nome_digitado != "":
+            texto_input = fonte_principal.render(nome_digitado, True, cor_input_atual)
+        else:
+            if input_ativo:
+                texto_input = fonte_principal.render("", True, cor_input_atual)
+            else:
+                texto_input = fonte_principal.render(placeholder, True, (220, 220, 220))
 
-        # (removido) cor_borda = ...
-        # (removido) pygame.draw.rect(tela, cor_borda, input_rect, width=3, border_radius=10)
-
-        mostrar = nome_digitado if nome_digitado else placeholder
-        cor_texto = cor_input_atual if nome_digitado else (220, 220, 220)
-        texto_input = fonte_principal.render(mostrar, True, cor_texto)
         tela.blit(texto_input, (input_rect.x + 14, input_rect.y + 10))
 
-        # Botão CONTINUAR com hover
+        # Cursor piscando
+        tempo_atual = pygame.time.get_ticks()
+        if tempo_atual - cursor_timer > cursor_interval:
+            cursor_visible = not cursor_visible
+            cursor_timer = tempo_atual
+
+        if input_ativo and cursor_visible:
+            cursor_x = input_rect.x + 14 + fonte_principal.size(nome_digitado)[0]
+            cursor_y = input_rect.y + 10
+            pygame.draw.line(tela, (0, 0, 0),
+                             (cursor_x, cursor_y),
+                             (cursor_x, cursor_y + fonte_principal.get_height()), 2)
+
+        # === BOTÕES ===
         mouse_pos = pygame.mouse.get_pos()
+        # CONTINUAR
         botao_base_rect = pygame.Rect(botao_pos[0], botao_pos[1], *botao_size_original)
         is_hover_continuar = botao_base_rect.collidepoint(mouse_pos)
         escala = 1.1 if is_hover_continuar else 1.0
@@ -183,30 +229,51 @@ def executar_tela_nome():
         offset_y = (nova_altura - botao_size_original[1]) // 2
         nova_pos = (botao_pos[0] - offset_x, botao_pos[1] - offset_y)
         botao_rect = botao_img.get_rect(topleft=nova_pos)
-
         tela.blit(botao_img, nova_pos)
         texto_botao = fonte_principal.render("CONTINUAR", True, (255, 215, 0))
-        texto_botao_rect = texto_botao.get_rect(center=botao_rect.center)
-        tela.blit(texto_botao, texto_botao_rect)
+        tela.blit(texto_botao, texto_botao.get_rect(center=botao_rect.center))
 
-        # Botão HOME com hover
+        # HOME
         if botaohome_rect.collidepoint(mouse_pos):
             tela.blit(img_botaohome_hover, botaohome_pos)
         else:
             tela.blit(img_botaohome, botaohome_pos)
 
-        # Mensagem de erro
+        # === Mensagem de erro com Balão de Fala ===
         if mostrar_erro and texto_erro:
-            msg = fonte_erro.render(texto_erro, True, (255, 255, 255))
-            pad = 10
-            msg_rect = msg.get_rect()
-            msg_bg = pygame.Surface((msg_rect.width + 2*pad, msg_rect.height + 2*pad), pygame.SRCALPHA)
-            msg_bg.fill((200, 50, 50, 180))
-            bg_pos = (input_rect.x, input_rect.y - 80)
-            tela.blit(msg_bg, bg_pos)
-            tela.blit(msg, (bg_pos[0] + pad, bg_pos[1] + pad))
+            # Posição da cabeça da personagem na imagem (aproximada)
+            x_personagem = 925
+            y_personagem = 275
+            largura_max_balao = 400
+            
+            # Quebra o texto em linhas
+            largura_max_texto = largura_max_balao - 80 # Adicionei um padding
+            linhas_de_texto = quebrar_texto(texto_erro, fonte_erro, largura_max_texto)
+            
+            # Ajusta o tamanho do balão com base no texto
+            largura_balao = max(fonte_erro.size(max(linhas_de_texto, key=len))[0] + 60, 200)
+            
+            # AQUI: AUMENTAMOS A ALTURA MÍNIMA E ADICIONAMOS MAIS ESPAÇO
+            altura_balao = len(linhas_de_texto) * fonte_erro.get_height() + 180
+            
+            # Redimensiona o balão para o tamanho calculado
+            balao_redimensionado = pygame.transform.smoothscale(img_balao_fala, (largura_balao, altura_balao))
 
-        # Cursor
+            # Posição do balão: acima da cabeça
+            pos_balao_x = x_personagem - largura_balao // 2
+            pos_balao_y = y_personagem - altura_balao - 50 
+
+            # Exibe o balão
+            tela.blit(balao_redimensionado, (pos_balao_x, pos_balao_y))
+            
+            # Exibe cada linha do texto dentro do balão
+            for i, linha in enumerate(linhas_de_texto):
+                msg = fonte_erro.render(linha, True, (0, 0, 0))
+                # Ajusta a posição vertical para centralizar o texto
+                msg_rect = msg.get_rect(center=(pos_balao_x + largura_balao // 2, pos_balao_y + 85 + i * fonte_erro.get_height()))
+                tela.blit(msg, msg_rect)
+
+        # Cursor personalizado
         tela.blit(cursor_img, mouse_pos)
 
         pygame.display.update()
